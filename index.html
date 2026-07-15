@@ -108,8 +108,9 @@
 
   <div class="card">
     <label for="artistInput">Favorite artists</label>
-    <input type="text" id="artistInput" placeholder="Type an artist and press enter" />
+    <input type="text" id="artistInput" placeholder="Type one and press enter, or paste a comma-separated list" />
     <div id="artistList"></div>
+    <div class="status" id="artistCount" style="margin-top:8px;"></div>
   </div>
 
   <div class="card">
@@ -149,6 +150,8 @@
   }
   function renderArtists() {
     const list = loadArtists();
+    document.getElementById("artistCount").textContent =
+      list.length === 0 ? "No artists saved yet" : `${list.length} artist${list.length === 1 ? "" : "s"} saved`;
     artistList.innerHTML = list.map((a, i) =>
       `<span class="artist-tag">${a}<button data-i="${i}" aria-label="remove ${a}">×</button></span>`
     ).join("");
@@ -162,11 +165,34 @@
     });
   }
 
+  function addArtistsFromText(text) {
+    const names = text
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (names.length === 0) return;
+    const list = loadArtists();
+    for (const name of names) {
+      if (!list.some((a) => a.toLowerCase() === name.toLowerCase())) {
+        list.push(name);
+      }
+    }
+    saveArtists(list);
+  }
+
   artistInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && artistInput.value.trim()) {
-      const list = loadArtists();
-      list.push(artistInput.value.trim());
-      saveArtists(list);
+      addArtistsFromText(artistInput.value);
+      artistInput.value = "";
+      renderArtists();
+    }
+  });
+
+  artistInput.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (text.includes(",") || text.includes("\n")) {
+      e.preventDefault();
+      addArtistsFromText(text);
       artistInput.value = "";
       renderArtists();
     }
