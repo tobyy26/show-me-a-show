@@ -1,0 +1,11 @@
+{
+  "name": "nearby-shows",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev public --compatibility-date=2026-07-15",
+    "deploy": "wrangler pages deploy public --project-name=nearby-shows"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

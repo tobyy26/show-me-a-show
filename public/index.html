@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Nearby Shows</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#141414" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #141414;
+    color: #f0f0ec;
+    padding: 24px 16px 60px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { color: #9c9a92; font-size: 14px; margin: 0 0 24px; }
+  .card {
+    background: #1e1e1c;
+    border: 1px solid #333230;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  label { font-size: 13px; color: #b5b3aa; display: block; margin-bottom: 6px; }
+  input[type=text], input[type=email], input[type=number] {
+    width: 100%;
+    background: #141414;
+    border: 1px solid #3a3937;
+    color: #f0f0ec;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .artist-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #2a2a27;
+    border-radius: 20px;
+    padding: 6px 10px 6px 14px;
+    font-size: 13px;
+    margin: 0 6px 6px 0;
+  }
+  .artist-tag button {
+    background: none;
+    border: none;
+    color: #9c9a92;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px;
+  }
+  button.primary {
+    width: 100%;
+    background: #d85a30;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: 0.5; }
+  button.secondary {
+    background: #2a2a27;
+    color: #f0f0ec;
+    border: 1px solid #3a3937;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.secondary.active {
+    background: #d85a30;
+    border-color: #d85a30;
+  }
+  .radius-presets {
+    display: flex;
+    gap: 8px;
+    margin-top: -4px;
+  }
+  .radius-presets button { flex: 1; }
+  .status { font-size: 13px; color: #9c9a92; margin-top: 10px; text-align: center; }
+  .event {
+    border-bottom: 1px solid #2a2a27;
+    padding: 12px 0;
+  }
+  .event:last-child { border-bottom: none; }
+  .event .artist { font-weight: 600; font-size: 15px; }
+  .event .meta { font-size: 13px; color: #9c9a92; margin-top: 2px; }
+  .event a { color: #d85a30; text-decoration: none; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>Nearby shows</h1>
+  <p class="sub">Tap when you land. We'll check who's playing near you.</p>
+
+  <div class="card">
+    <label for="artistInput">Favorite artists</label>
+    <input type="text" id="artistInput" placeholder="Type one and press enter, or paste a comma-separated list" />
+    <div id="artistList"></div>
+    <div class="status" id="artistCount" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card">
+    <label for="radius">Search radius (miles)</label>
+    <input type="number" id="radius" value="30" min="5" max="150" />
+    <div class="radius-presets">
+      <button type="button" class="secondary" data-miles="10">10 mi</button>
+      <button type="button" class="secondary" data-miles="25">25 mi</button>
+      <button type="button" class="secondary" data-miles="50">50 mi</button>
+      <button type="button" class="secondary" data-miles="100">100 mi</button>
+    </div>
+  </div>
+
+  <button class="primary" id="goBtn">I'm here — check for shows</button>
+  <div class="status" id="status"></div>
+
+  <div class="card" id="results" style="display:none;"></div>
+
+<script>
+  const ARTISTS_KEY = "nearby-shows:artists";
+  const RADIUS_KEY = "nearby-shows:radius";
+
+  const artistInput = document.getElementById("artistInput");
+  const artistList = document.getElementById("artistList");
+  const radiusInput = document.getElementById("radius");
+  const radiusButtons = document.querySelectorAll(".radius-presets button");
+  const goBtn = document.getElementById("goBtn");
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+
+  function loadArtists() {
+    try { return JSON.parse(localStorage.getItem(ARTISTS_KEY)) || []; }
+    catch { return []; }
+  }
+  function saveArtists(list) {
+    localStorage.setItem(ARTISTS_KEY, JSON.stringify(list));
+  }
+  function renderArtists() {
+    const list = loadArtists();
+    document.getElementById("artistCount").textContent =
+      list.length === 0 ? "No artists saved yet" : `${list.length} artist${list.length === 1 ? "" : "s"} saved`;
+    artistList.innerHTML = list.map((a, i) =>
+      `<span class="artist-tag">${a}<button data-i="${i}" aria-label="remove ${a}">×</button></span>`
+    ).join("");
+    artistList.querySelectorAll("button").forEach(btn => {
+      btn.onclick = () => {
+        const list = loadArtists();
+        list.splice(Number(btn.dataset.i), 1);
+        saveArtists(list);
+        renderArtists();
+      };
+    });
+  }
+
+  function addArtistsFromText(text) {
+    const names = text
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (names.length === 0) return;
+    const list = loadArtists();
+    for (const name of names) {
+      if (!list.some((a) => a.toLowerCase() === name.toLowerCase())) {
+        list.push(name);
+      }
+    }
+    saveArtists(list);
+  }
+
+  artistInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && artistInput.value.trim()) {
+      addArtistsFromText(artistInput.value);
+      artistInput.value = "";
+      renderArtists();
+    }
+  });
+
+  artistInput.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (text.includes(",") || text.includes("\n")) {
+      e.preventDefault();
+      addArtistsFromText(text);
+      artistInput.value = "";
+      renderArtists();
+    }
+  });
+
+  radiusInput.value = localStorage.getItem(RADIUS_KEY) || "30";
+
+  function highlightRadiusPreset() {
+    radiusButtons.forEach(b => b.classList.toggle("active", b.dataset.miles === radiusInput.value));
+  }
+  radiusInput.addEventListener("change", () => {
+    localStorage.setItem(RADIUS_KEY, radiusInput.value);
+    highlightRadiusPreset();
+  });
+  radiusButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      radiusInput.value = btn.dataset.miles;
+      localStorage.setItem(RADIUS_KEY, btn.dataset.miles);
+      highlightRadiusPreset();
+    });
+  });
+  highlightRadiusPreset();
+
+  renderArtists();
+
+  async function reverseGeocodeCity(lat, lng) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+        headers: { "Accept-Language": "en" }
+      });
+      const data = await res.json();
+      return data.address?.city || data.address?.town || data.address?.state || "your location";
+    } catch {
+      return "your location";
+    }
+  }
+
+  goBtn.addEventListener("click", () => {
+    const artists = loadArtists();
+    if (artists.length === 0) {
+      statusEl.textContent = "Add at least one artist first.";
+      return;
+    }
+    goBtn.disabled = true;
+    statusEl.textContent = "Getting your location...";
+    resultsEl.style.display = "none";
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      statusEl.textContent = "Figuring out what city you're in...";
+      const city = await reverseGeocodeCity(lat, lng);
+
+      statusEl.textContent = `Checking shows near ${city}...`;
+      try {
+        const res = await fetch("/api/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lat, lng,
+            radiusMiles: Number(radiusInput.value) || 30,
+            artists,
+          }),
+        });
+        const data = await res.json();
+        renderResults(data, city);
+      } catch (err) {
+        statusEl.textContent = "Something went wrong. Try again.";
+      } finally {
+        goBtn.disabled = false;
+      }
+    }, () => {
+      statusEl.textContent = "Location permission denied.";
+      goBtn.disabled = false;
+    });
+  });
+
+  function renderResults(data, city) {
+    resultsEl.style.display = "block";
+    if (!data.events || data.events.length === 0) {
+      statusEl.textContent = `No shows found near ${city}.`;
+      resultsEl.innerHTML = "";
+      return;
+    }
+    statusEl.textContent = `${data.events.length} show(s) near ${city}`;
+    resultsEl.innerHTML = data.events.map(e => `
+      <div class="event">
+        <div class="artist">${e.artist}</div>
+        <div class="meta">${e.venue}${e.venue ? ", " : ""}${e.city} · ${new Date(e.date).toLocaleString()}</div>
+        ${e.url ? `<a href="${e.url}" target="_blank" rel="noopener">Tickets →</a>` : ""}
+      </div>
+    `).join("");
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+</script>
+</body>
+</html>
