@@ -151,7 +151,7 @@
   function renderArtists() {
     const list = loadArtists();
     document.getElementById("artistCount").textContent =
-      list.length === 0 ? "No artists saved yet" : `${list.length} artist${list.length === 1 ? "" : "s"} saved`;
+      list.length === 0 ? "No artists saved" : `${list.length} artist${list.length === 1 ? "" : "s"} saved`;
     artistList.innerHTML = list.map((a, i) =>
       `<span class="artist-tag">${a}<button data-i="${i}" aria-label="remove ${a}">×</button></span>`
     ).join("");
